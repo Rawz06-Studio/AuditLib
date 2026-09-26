@@ -1,0 +1,13 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+
+jobs:
+  ci:
+    uses: RawZ06-Studio/.github/.github/workflows/maven-ci.yml@main
+    with:
+      java_version: '25'

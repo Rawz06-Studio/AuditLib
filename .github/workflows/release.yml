@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    uses: RawZ06-Studio/.github/.github/workflows/maven-ci-release.yml@main
+    with:
+      java_version: '25'
+      publishable: true
+    permissions:
+      contents: write
+
+  snapshot:
+    needs: release
+    uses: RawZ06-Studio/.github/.github/workflows/maven-ci-snapshot.yml@main
+    with:
+      java_version: '25'
+    permissions:
+      contents: write
