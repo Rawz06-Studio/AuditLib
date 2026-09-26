@@ -15,7 +15,7 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <bytebuddy.version>1.15.11</bytebuddy.version>
+        <bytebuddy.version>1.18.14</bytebuddy.version>
         <junit.version>5.10.1</junit.version>
     </properties>
 
