@@ -6,7 +6,7 @@
 
     <groupId>fr.rawz06</groupId>
     <artifactId>audit</artifactId>
-    <version>1.0</version>
+    <version>1.0.1-SNAPSHOT</version>
 
     <name>AuditLib</name>
     <description>Lightweight audit library for Java 25+</description>
