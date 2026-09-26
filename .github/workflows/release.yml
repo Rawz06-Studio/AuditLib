@@ -13,6 +13,7 @@ jobs:
       publishable: true
     permissions:
       contents: write
+      packages: write
 
   snapshot:
     needs: release
