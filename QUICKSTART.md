@@ -1,14 +1,8 @@
 # QUICKSTART.md — 5 Minutes to Audit Logs
 
-## 1. Get the JARs
+## 1. Add the Dependency
 
-You need two JARs from the `target/` directory:
-- `audit-1.0-SNAPSHOT.jar` — The library (18 KB)
-- `audit-agent-1.0-SNAPSHOT.jar` — The ByteBuddy agent (8 MB)
-
-## 2. Add Dependency to Your Project
-
-### Maven
+Maven:
 ```xml
 <dependency>
     <groupId>fr.rawz06</groupId>
@@ -17,18 +11,18 @@ You need two JARs from the `target/` directory:
 </dependency>
 ```
 
-### Gradle
+Gradle:
 ```gradle
-dependencies {
-    implementation 'fr.rawz06:audit:1.0-SNAPSHOT'
-}
+implementation 'fr.rawz06:audit:1.0-SNAPSHOT'
 ```
 
-## 3. Annotate a Method
+## 2. Annotate a Method
 
 ```java
 import fr.rawz06.audit.annotations.Audited;
+import org.springframework.stereotype.Service;
 
+@Service
 public class MyService {
     
     @Audited
@@ -38,13 +32,13 @@ public class MyService {
 }
 ```
 
-## 4. Run Your App with the Agent
+## 3. Run Your Spring Boot App
 
 ```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar
+mvn spring-boot:run
 ```
 
-## 5. See the Audit Log
+## 4. Call the Method
 
 When you call `doSomething("user123", "delete")`, you'll see:
 

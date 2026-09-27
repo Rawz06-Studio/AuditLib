@@ -1,37 +1,49 @@
 package fr.rawz06.audit.core;
 
 import fr.rawz06.audit.annotations.Audited;
+import fr.rawz06.audit.annotations.AuditIgnore;
 import fr.rawz06.audit.serializer.ArgumentSerializer;
 import fr.rawz06.audit.serializer.MaskingArgumentSerializer;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.stereotype.Component;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
 
 import java.lang.reflect.Method;
 
+@Aspect
+@Component
 public class AuditAspect {
     private static final ArgumentSerializer serializer = new MaskingArgumentSerializer();
 
-    /**
-     * Intercept method invocation and emit audit log.
-     * This method is thread-safe and never throws an exception that would break the calling code.
-     *
-     * @param method      the method being invoked
-     * @param instance    the instance (may be null for static methods)
-     * @param args        the method arguments
-     * @param invocation  lambda to invoke the actual method
-     * @return the result of the method invocation
-     */
-    public static Object audit(Method method, Object instance, Object[] args, AuditInvocation invocation) {
+    @Around("@annotation(fr.rawz06.audit.annotations.Audited)")
+    public Object auditMethodCall(ProceedingJoinPoint joinPoint) throws Throwable {
+        Method method = getMethod(joinPoint);
         Audited audited = method.getAnnotation(Audited.class);
-        if (audited == null && instance != null) {
-            audited = instance.getClass().getAnnotation(Audited.class);
-        }
+        return performAudit(joinPoint, method, audited);
+    }
 
+    @Around("@within(fr.rawz06.audit.annotations.Audited)")
+    public Object auditClassCall(ProceedingJoinPoint joinPoint) throws Throwable {
+        Method method = getMethod(joinPoint);
+        
+        // Check if method has @AuditIgnore
+        if (method.isAnnotationPresent(AuditIgnore.class)) {
+            return joinPoint.proceed();
+        }
+        
+        Audited audited = method.getAnnotation(Audited.class);
         if (audited == null) {
-            // Not annotated, just invoke
-            try {
-                return invocation.invoke();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            audited = method.getDeclaringClass().getAnnotation(Audited.class);
+        }
+        
+        return performAudit(joinPoint, method, audited);
+    }
+
+    private Object performAudit(ProceedingJoinPoint joinPoint, Method method, Audited audited) throws Throwable {
+        if (audited == null) {
+            return joinPoint.proceed();
         }
 
         long startTime = System.currentTimeMillis();
@@ -39,38 +51,41 @@ public class AuditAspect {
         long duration = -1;
 
         try {
-            // Serialize arguments with masking
+            String className = joinPoint.getTarget().getClass().getName();
+            String methodName = audited.action().isEmpty() ? method.getName() : audited.action();
+            Object[] args = joinPoint.getArgs();
+
             String argsStr = serializeArguments(method, args, audited.mask());
-            String action = audited.action().isEmpty() ? method.getName() : audited.action();
-            String fullClassName = method.getDeclaringClass().getName();
 
             Object result;
             try {
-                result = invocation.invoke();
-            } catch (Exception e) {
+                result = joinPoint.proceed();
+            } catch (Throwable e) {
                 status = "ERROR";
                 throw e;
             } finally {
                 try {
                     duration = System.currentTimeMillis() - startTime;
                 } catch (Exception e) {
+                    duration = -1;
                     System.err.println("[AUDIT-INTERNAL] Failed to calculate duration: " + e.getMessage());
                 }
 
-                emitAuditLog(fullClassName, action, argsStr, status, duration);
+                emitAuditLog(className, methodName, argsStr, status, duration);
             }
 
             return result;
-        } catch (Exception e) {
-            // Ensure we always throw the original exception
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            }
-            throw new RuntimeException(e);
+        } catch (Throwable e) {
+            throw e;
         }
     }
 
-    private static String serializeArguments(Method method, Object[] args, String[] masks) {
+    private Method getMethod(ProceedingJoinPoint joinPoint) throws NoSuchMethodException {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        return signature.getMethod();
+    }
+
+    private String serializeArguments(Method method, Object[] args, String[] masks) {
         try {
             return serializer.serialize(method, args, masks);
         } catch (Exception e) {
@@ -79,17 +94,12 @@ public class AuditAspect {
         }
     }
 
-    private static void emitAuditLog(String className, String methodName, String argsStr, String status, long durationMs) {
+    private void emitAuditLog(String className, String methodName, String argsStr, String status, long durationMs) {
         try {
             String auditLine = AuditEventBuilder.build(className, methodName, argsStr, status, durationMs);
             System.out.println(auditLine);
         } catch (Exception e) {
             System.err.println("[AUDIT-INTERNAL] Failed to emit audit log: " + e.getMessage());
         }
-    }
-
-    @FunctionalInterface
-    public interface AuditInvocation {
-        Object invoke() throws Exception;
     }
 }

@@ -1,4 +1,4 @@
-# INTEGRATION.md — Adding AuditLib to Your Application
+# INTEGRATION.md — Adding AuditLib to Your Spring Boot Application
 
 ## Step 1: Add Maven Dependency
 
@@ -10,104 +10,51 @@
 </dependency>
 ```
 
-## Step 2: Launch with Agent JAR
-
-Replace `your-app.jar` with your application JAR:
-
-```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar
+Gradle:
+```gradle
+implementation 'fr.rawz06:audit:1.0-SNAPSHOT'
 ```
 
-**Note:** The agent JAR must be in your classpath or referenced with an absolute path.
+## Step 2: That's It!
 
-### With JVM Arguments
+Spring Boot auto-configuration automatically:
+- Registers the `AuditAspect`
+- Enables AspectJ proxy creation
+- Scans for `@Audited` annotations
 
-```bash
-java \
-  -javaagent:audit-agent-1.0-SNAPSHOT.jar \
-  -Xmx2g \
-  -Xms1g \
-  -Dapp.name=myapp \
-  -jar your-app.jar
-```
-
-### In Docker
-
-```dockerfile
-FROM openjdk:25-slim
-
-COPY audit-agent-1.0-SNAPSHOT.jar /app/
-COPY your-app.jar /app/
-
-WORKDIR /app
-
-ENTRYPOINT ["java", "-javaagent:/app/audit-agent-1.0-SNAPSHOT.jar", "-jar", "your-app.jar"]
-```
-
-### In Kubernetes
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-app
-spec:
-  containers:
-  - name: app
-    image: myapp:latest
-    env:
-    - name: JAVA_OPTS
-      value: "-javaagent:/app/audit-agent-1.0-SNAPSHOT.jar"
-```
+No configuration needed!
 
 ## Step 3: Annotate Your Methods
-
-### Single Method
 
 ```java
 import fr.rawz06.audit.annotations.Audited;
 
+@Service
 public class UserService {
     
-    @Audited
-    public User createUser(String email, String name) {
+    @Audited(mask = {"password"})
+    public User createUser(String email, String password) {
         // Your code here
     }
 }
 ```
 
-### Entire Class
+Or on the entire class:
 
 ```java
-import fr.rawz06.audit.annotations.Audited;
-import fr.rawz06.audit.annotations.AuditIgnore;
-
 @Audited
+@Service
 public class PaymentService {
-    
-    public Payment charge(String accountId, double amount) {
-        // Audited
-    }
+    public void charge(String accountId, double amount) { ... }  // audited
     
     @AuditIgnore
-    public String generateTransactionId() {
-        // NOT audited
-    }
+    public void logInternal(String message) { ... }  // NOT audited
 }
 ```
 
-### With Masking
+## Step 4: Configure Compilation (Optional but Recommended)
 
-```java
-@Audited(mask = {"password", "token", "secret.*"})
-public void login(String username, String password, String token) {
-    // password and token will show as *** in logs
-}
-```
-
-## Step 4: Configure Compilation
-
-Ensure parameter names are preserved (optional but recommended):
+Ensure parameter names are preserved:
 
 ### Maven
 
@@ -133,16 +80,10 @@ compileJava {
 
 ## Step 5: Verify Installation
 
-Run your app with the agent. You should see:
+Run your Spring Boot app. You should see audit logs when calling `@Audited` methods:
 
 ```
-[AuditAgent] Installed. Watching for @Audited methods...
-```
-
-Then invoke an `@Audited` method and check stdout for:
-
-```
-AUDIT|com.example.UserService#createUser|email=user@example.com, name=John|SUCCESS|15
+AUDIT|com.example.UserService#createUser|email=user@example.com, password=***|SUCCESS|45
 ```
 
 ## Routing Audit Logs
@@ -152,30 +93,22 @@ By default, audit logs go to **stdout**. Route them where you need:
 ### To File
 
 ```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar > audit.log 2>&1
+java -jar your-app.jar > audit.log 2>&1
 ```
 
 ### To Syslog
 
 ```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar | logger -t audit
+java -jar your-app.jar | logger -t audit
 ```
 
-### To Splunk
+### To Splunk (HTTP Event Collector)
 
-```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar | nc splunk-forwarder 9999
-```
-
-### To Vector
-
-```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar | vector --config /etc/vector/vector.toml
-```
+Use a log aggregator or configure a custom logging setup.
 
 ### In Logback
 
-Create a `logback.xml` with a stdout appender:
+Create a `logback-spring.xml`:
 
 ```xml
 <configuration>
@@ -192,72 +125,69 @@ Create a `logback.xml` with a stdout appender:
 </configuration>
 ```
 
-The audit lib writes to `System.out`, which Logback will capture.
+The audit lib writes to `System.out`, which Logback will capture and route.
 
-## Multi-Classpath Scenario
+## Docker Integration
 
-If you're using a custom classpath, ensure the agent JAR dependencies are available:
+```dockerfile
+FROM openjdk:25-slim
 
-```bash
-java -javaagent:audit-agent-1.0-SNAPSHOT.jar \
-     -cp ".:lib/*:audit-agent-1.0-SNAPSHOT.jar" \
-     com.example.Main
+COPY target/audit-1.0-SNAPSHOT.jar /app/audit.jar
+COPY target/your-app.jar /app/app.jar
+
+WORKDIR /app
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+## Kubernetes Integration
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: audit-app
+spec:
+  containers:
+  - name: app
+    image: your-app:latest
+    stdout:
+      type: kubernetes.io/logs
 ```
 
 ## Troubleshooting
 
-### Agent not loading
+### Aspect not triggering
 
-Check for:
-- Correct path to agent JAR (use absolute path if needed)
-- JVM permissions to load agents (check SecurityManager)
-- Java version: 25+ required
+1. Verify the method is **public**
+   - Spring AOP only proxies public methods (by design)
+   
+2. Verify `@Audited` annotation exists
+   
+3. Verify the service is Spring-managed (@Service, @Component, etc.)
+   - AOP only works on Spring beans
 
-Look for this message in stderr:
-```
-[AuditAgent] Installed. Watching for @Audited methods...
-```
-
-If missing, the agent didn't load. Try:
-```bash
-java -javaagent:/full/path/to/audit-agent-1.0-SNAPSHOT.jar -jar your-app.jar
-```
+4. Check Spring Boot logs for auto-configuration:
+   ```
+   DEBUG org.springframework.boot.autoconfigure
+   ```
 
 ### No audit logs appearing
 
-1. Verify methods are **public**
-2. Verify they have `@Audited` annotation
-3. Verify they're actually being called
-4. Check for `@AuditIgnore` if method is skipped
+1. Verify methods are being called
+2. Check both System.out and System.err
+3. Enable debug logging:
+   ```properties
+   logging.level.fr.rawz06.audit=DEBUG
+   ```
 
 ### Parameter names showing as arg0, arg1, ...
 
 Compile source with `-parameters` flag (see Step 4).
 
-### Large agent JAR size
-
-The agent JAR includes ByteBuddy (~8MB). This is normal.
-- Do NOT decompress in production
-- Cache agent JAR locally if using container image
-- Single agent instance shared across all methods
-
-## Disabling Audit Temporarily
-
-### Method-level
-
-Remove the `@Audited` annotation or add `@AuditIgnore`.
-
-### Class-level
-
-Remove `@Audited` from the class or add `@AuditExclude`.
-
-### Application-wide
-
-Simply don't launch with `-javaagent`. All annotations become no-ops.
-
 ## Performance Impact
 
-Measured on 10k method invocations:
+Measured on 10k method invocations in Spring Boot:
 
 | Scenario | Overhead |
 |----------|----------|
@@ -265,6 +195,14 @@ Measured on 10k method invocations:
 | Method with 2-3 args | ~0.8ms |
 | Method with masking | ~1ms |
 | **Overall app impact** | **< 1%** |
+
+## Disabling Audit
+
+### Temporarily
+Remove `@Audited` annotations from methods/classes.
+
+### Application-wide
+Uninstall the dependency and rebuild.
 
 ## Next Steps
 

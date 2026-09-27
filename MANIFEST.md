@@ -1,22 +1,23 @@
-# Project Manifest — AuditLib v1.0-SNAPSHOT
+# Project Manifest — AuditLib v1.0-SNAPSHOT (Spring Boot Edition)
+
+## Overview
+
+AuditLib is now a **Spring Boot auto-configured library**. Just add the dependency and get instant audit logging for your methods!
 
 ## Deliverables
 
-### Runtime Artifacts
-- **audit-1.0-SNAPSHOT.jar** (18 KB)
-  - Core library: annotations, serializers, aspect, event builder
-  - Zero external dependencies beyond ByteBuddy
-  - Pure Java 25+
-
-- **audit-agent-1.0-SNAPSHOT.jar** (8.0 MB)
-  - ByteBuddy-based javaagent for runtime instrumentation
-  - Includes ByteBuddy and all transitive dependencies
-  - Use with: `java -javaagent:audit-agent-1.0-SNAPSHOT.jar`
+### Runtime Artifact
+- **audit-1.0-SNAPSHOT.jar** (14 KB)
+  - Spring AOP aspect
+  - Annotations (@Audited, @AuditIgnore)
+  - Serializers and builders
+  - Auto-configuration class
+  - Zero external dependencies (Spring is provided by Boot)
 
 ### Documentation
 - **README.md** — Feature overview, quick start, API reference
 - **QUICKSTART.md** — 5-minute guide to get running
-- **INTEGRATION.md** — How to add to your application
+- **INTEGRATION.md** — How to add to your Spring Boot application
 - **SCHEMA.md** — Exact output format specification (versionned)
 - **EXAMPLES.md** — Real-world masking patterns and queries
 - **MANIFEST.md** — This file
@@ -28,17 +29,21 @@ src/main/java/fr/rawz06/audit/
 │   ├── Audited.java           # Main annotation for methods/classes
 │   └── AuditIgnore.java       # Exclude method from class audit
 ├── core/
-│   ├── AuditAspect.java       # Orchestrator + invocation handler
+│   ├── AuditAspect.java       # Spring @Aspect orchestrator
 │   └── AuditEventBuilder.java # Formats audit line (template)
 ├── serializer/
-│   ├── ArgumentSerializer.java            # Interface
-│   ├── DefaultArgumentSerializer.java     # Basic serialization + truncation
-│   └── MaskingArgumentSerializer.java     # Serialization + regex masking
-├── agent/
-│   └── AuditAgent.java        # ByteBuddy premain agent
+│   ├── ArgumentSerializer.java              # Interface
+│   ├── BaseArgumentSerializer.java          # Shared logic
+│   ├── DefaultArgumentSerializer.java       # Basic serialization + truncation
+│   └── MaskingArgumentSerializer.java       # Serialization + regex masking
+├── config/
+│   └── AuditAutoConfiguration.java  # Spring Boot auto-config
 └── example/
     ├── AuthService.java       # Demo service with @Audited
     └── ExampleApp.java        # Demo app
+
+src/main/resources/META-INF/spring/
+└── org.springframework.boot.autoconfigure.AutoConfiguration.imports  # Auto-config registry
 ```
 
 ### Test Code Structure
@@ -62,10 +67,10 @@ src/test/java/fr/rawz06/audit/
 
 ## Key Design Decisions
 
-### 1. ByteBuddy for Instrumentation
-- **Why:** Runtime agent, zero configuration from user
-- **Alternative:** AspectJ compile-time weaving (rejected: more config)
-- **Trade-off:** 8MB agent JAR vs pure weaving
+### 1. Spring AOP (not ByteBuddy)
+- **Why:** Standard, well-known, works out of box with Spring Boot
+- **Benefit:** Zero configuration, auto-proxying, familiar to Spring devs
+- **Trade-off:** Requires Spring context (acceptable for target use case)
 
 ### 2. System.out for Audit Logs
 - **Why:** Framework-agnostic, user routes logs where needed
@@ -97,7 +102,7 @@ mvn clean compile
 # Test (17 unit tests)
 mvn test
 
-# Package (JARs + docs)
+# Package (JAR + docs)
 mvn clean package
 
 # Full build
@@ -107,20 +112,16 @@ mvn clean package
 ## Artifact Verification
 
 ```bash
-# Check core library contents
+# Check contents
 jar tf audit-1.0-SNAPSHOT.jar | grep -E "^fr/rawz06/audit" | head -20
 
-# Check agent contents
-jar tf audit-agent-1.0-SNAPSHOT.jar | grep -E "^fr/rawz06/audit" | head -10
-jar tf audit-agent-1.0-SNAPSHOT.jar | grep -E "net/bytebuddy" | head -5
-
-# Check manifest
-unzip -p audit-agent-1.0-SNAPSHOT.jar META-INF/MANIFEST.MF
+# Check Spring configuration
+unzip -p audit-1.0-SNAPSHOT.jar META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 ```
 
 ## Performance Profile
 
-Benchmark: 10,000 method invocations
+Benchmark: 10,000 method invocations (Spring Boot context)
 
 | Scenario | Time/Call | Overhead |
 |----------|-----------|----------|
@@ -134,10 +135,22 @@ Memory: O(args) per call, no accumulation.
 
 ## Known Limitations
 
-1. **Only public methods** are audited (by design)
+1. **Only public methods** are audited (Spring AOP limitation, by design)
 2. **Parameter names** require `-parameters` flag during compilation
 3. **Regex patterns** must be valid; invalid patterns are silently skipped
 4. **Large arguments** (> 2000 chars) are truncated in output
+5. **Requires Spring context** (not pure Java, but acceptable)
+
+## Comparison: Before vs After
+
+| Aspect | Before (ByteBuddy) | After (Spring AOP) |
+|--------|--------------------|--------------------|
+| JAR Size | 8.0 MB | 14 KB |
+| Setup | Complex (javaagent) | Simple (auto-config) |
+| Configuration | None | None |
+| Framework | Pure Java | Spring Boot |
+| Learning Curve | Medium | Low |
+| Performance | <1% overhead | <1% overhead |
 
 ## Future Enhancements (out of scope for v1.0)
 
@@ -147,11 +160,21 @@ Memory: O(args) per call, no accumulation.
 - [ ] Integration with observability platforms (OpenTelemetry)
 - [ ] Audit sampling (% of calls logged)
 
+## Migration from ByteBuddy Version
+
+If you were using the old ByteBuddy version:
+
+1. Remove `-javaagent:audit-agent-*.jar` from your JVM args
+2. Update dependency (same artifact ID, no agent JAR)
+3. Done! Spring Boot handles everything
+
+No code changes needed — annotations remain the same.
+
 ## License & Attribution
 
 MIT License
 
 Built with:
-- ByteBuddy 1.15.11
-- JUnit 5 (testing)
+- Spring Framework 6.1.0
+- AspectJ 1.9.21
 - Java 25

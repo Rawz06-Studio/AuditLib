@@ -1,15 +1,15 @@
-# AuditLib — Lightweight Audit Library for Java 25+
+# AuditLib — Lightweight Audit Library for Spring Boot
 
-A zero-dependency audit library for Java 25+. Annotate your methods with `@Audited` and automatically emit structured audit logs to stdout.
+A zero-config audit library for Spring Boot. Annotate your methods with `@Audited` and automatically emit structured audit logs to stdout.
 
 ## Features
 
-✅ **Zero Framework Dependencies** — Pure Java, no Spring, no Jakarta, no frameworks  
+✅ **Spring AOP Integration** — Works seamlessly with Spring Boot  
 ✅ **Simple Annotations** — `@Audited` on methods or classes  
 ✅ **Structured Logs** — Parsable format: `AUDIT|class#method|args|status|duration_ms`  
 ✅ **Parameter Masking** — Regex-based masking for sensitive values  
 ✅ **Null-Safe** — Audit failures never break your code  
-✅ **ByteBuddy Agent** — Runtime instrumentation, zero config needed  
+✅ **Auto-Configuration** — Just add the dependency, it works!
 
 ## Quick Start
 
@@ -23,13 +23,9 @@ A zero-dependency audit library for Java 25+. Annotate your methods with `@Audit
 </dependency>
 ```
 
-### 2. Run with Agent
+That's it! Spring Boot auto-configuration handles the rest.
 
-```bash
-java -javaagent:audit-1.0-SNAPSHOT-agent.jar -jar your-app.jar
-```
-
-### 3. Annotate Your Methods
+### 2. Annotate Your Methods
 
 ```java
 import fr.rawz06.audit.annotations.Audited;
@@ -43,7 +39,7 @@ public class AuthService {
 }
 ```
 
-### 4. See Audit Logs
+### 3. See Audit Logs
 
 ```
 AUDIT|com.example.AuthService#login|username=john, password=***|SUCCESS|12
@@ -207,23 +203,30 @@ The audit library is designed to **never crash your application**:
 
 ## Performance
 
-- **Overhead**: < 1% on 10k method calls (benchmark available)
+- **Overhead**: < 1% on 10k method calls
 - **Memory**: No accumulation, no thread pools
 - **GC Impact**: Minimal string allocation
+
+## How It Works
+
+AuditLib uses **Spring AOP** to intercept method calls at runtime:
+
+1. You add the dependency to your Spring Boot app
+2. `AuditAutoConfiguration` auto-registers the `AuditAspect`
+3. Spring AOP creates proxies for classes with `@Audited`
+4. When a method is called, the aspect logs the audit event
+5. The original method executes normally
+
+Zero configuration needed! Spring Boot handles everything.
 
 ## Troubleshooting
 
 ### No audit logs appear
 
-1. Verify agent JAR is being loaded:
-   ```bash
-   java -javaagent:audit-1.0-SNAPSHOT-agent.jar -jar your-app.jar 2>&1 | grep -i audit
-   ```
-   Should see: `[AuditAgent] Installed...`
-
-2. Check that methods are public and have `@Audited`
-
-3. Verify compilation with `-parameters` (optional but recommended)
+1. Verify methods are **public** (AOP proxies only intercept public methods)
+2. Check that methods have `@Audited` annotation
+3. Verify they're being called
+4. Check for `@AuditIgnore` if method should be excluded
 
 ### Sensitive data is not masked
 
@@ -235,7 +238,7 @@ public void login(String username, String password) { ... }
 
 ### Parameter names show as arg0, arg1, ...
 
-Compile with `-parameters` flag. Otherwise, parameter names are unavailable at runtime.
+Compile with `-parameters` flag.
 
 ## License
 
