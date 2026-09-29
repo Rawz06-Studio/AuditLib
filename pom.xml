@@ -6,7 +6,7 @@
 
     <groupId>fr.rawz06</groupId>
     <artifactId>audit</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6-SNAPSHOT</version>
 
     <name>AuditLib</name>
     <description>Lightweight audit library for Spring Boot 4.1 / Java 25</description>
