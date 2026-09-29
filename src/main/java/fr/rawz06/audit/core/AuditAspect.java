@@ -6,14 +6,12 @@ import fr.rawz06.audit.serializer.ArgumentSerializer;
 import fr.rawz06.audit.serializer.MaskingArgumentSerializer;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.stereotype.Component;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 
 import java.lang.reflect.Method;
 
 @Aspect
-@Component
 public class AuditAspect {
     private static final ArgumentSerializer serializer = new MaskingArgumentSerializer();
 
